@@ -1,5 +1,7 @@
 # Weekwise
 
+[Open the live app](https://skyview059.github.io/WeeklyTimeLeft/) · [Source code](https://github.com/skyview059/WeeklyTimeLeft)
+
 A small, open-source weekly AI quota planner for Codex and Claude. Compare **quota remaining / time remaining**, see your weekly timeline, and keep manual usage check-ins. No backend, account, API key, or build step.
 
 ## Use locally
@@ -52,3 +54,4 @@ No dependency installation is required. Contributions are welcome through forks 
 ## License
 
 MIT — see [LICENSE](LICENSE). Independent project; not affiliated with OpenAI or Anthropic.
+

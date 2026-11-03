@@ -2,7 +2,7 @@
 
 [Open the live app](https://skyview059.github.io/WeeklyTimeLeft/) · [Source code](https://github.com/skyview059/WeeklyTimeLeft)
 
-A small, open-source weekly AI quota planner for Codex and Claude. Compare **quota remaining / time remaining**, see your weekly timeline, and keep manual usage check-ins. No backend, account, API key, or build step.
+A small, open-source weekly AI subscription usage planner for Codex and Claude. Compare **usage remaining % / time remaining %**, see your weekly timeline, and keep manual usage check-ins. No backend, account, API key, or build step.
 
 ## Use locally
 
@@ -10,7 +10,9 @@ Open `index.html` in a modern browser, or run `python -m http.server 8080` in th
 
 1. Choose Codex or Claude and open **Week settings**.
 2. Enter the date and time your weekly window starts, in your browser's local timezone. If you know the reset date instead, enter seven days before it.
-3. Enter either a percentage **remaining** or your weekly token limit and remaining tokens. If a provider shows 43% **used**, enter 57% remaining.
+3. Add your plan label (for example Pro, Max, or Ultra) and the usage percentage **remaining** shown by your provider. No token limit is needed. If a provider shows 43% **used**, enter 57% remaining. Plan labels do not imply specific provider entitlements.
+
+The main cards show **days left / 7 days** and **usage left / 100%**. For example, 3 days left and 55% usage left means 42.9% of the time remains and a usage/time ratio of 1.28×.
 4. Update usage after work sessions. Each provider has separate settings and readings.
 
 The clock updates every 15 seconds. Weeks are fixed 168-hour windows anchored to your selected instant, so a daylight-saving transition may shift the displayed local reset hour. Future windows show a full week and no pacing ratio until they begin. When a window rolls over, quota is unknown until you enter a new reading.
@@ -19,9 +21,9 @@ The clock updates every 15 seconds. Weeks are fixed 168-hour windows anchored to
 
 ## Privacy and limitations
 
-Usage is manual and is not read from provider accounts. A percentage does not imply a fixed number of tokens; token mode is only useful when you know a meaningful limit. Readings can become stale between updates.
+Usage is manual and is not read from provider accounts. A percentage does not imply a fixed number of tokens. The app only needs the percentage shown on your subscription. Older token-mode readings are preserved as percentages. Readings can become stale between updates.
 
-Settings and the latest 100 readings per provider stay in this browser's `localStorage`; the latest five appear in the timeline. Visitors do not share data, and there is no cross-device sync. Browser-data clearing removes your history. Changing a provider's start, quota mode, or token limit starts a fresh history. Local-file and hosted versions use separate storage. Google Fonts is the only external request; system fonts work offline. Remove the CSS `@import` for fully offline assets.
+Settings and the latest 100 readings per provider stay in this browser's `localStorage`; the latest five appear in the timeline. Visitors do not share data, and there is no cross-device sync. Browser-data clearing removes your history. Changing a provider's weekly start starts a fresh history; changing its plan label preserves readings. Local-file and hosted versions use separate storage. Google Fonts is the only external request; system fonts work offline. Remove the CSS `@import` for fully offline assets.
 
 ## Publish on GitHub Pages
 

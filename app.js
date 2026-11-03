@@ -12,7 +12,9 @@ try {
       const p = stored[provider];
       if (p && Number.isFinite(Date.parse(p.start)) && ['tokens', 'percent'].includes(p.mode) && Array.isArray(p.readings)) {
         p.readings = p.readings.filter(r => Number.isFinite(r.at) && Number.isFinite(r.cycle) && Number.isFinite(r.percent) && r.percent >= 0 && r.percent <= 100 && Number.isFinite(r.remaining)).slice(-100);
-        if (p.mode !== 'tokens' || Number.isSafeInteger(p.limit) && p.limit > 0) data[provider] = p;
+        // Preserve old percentage and token-mode readings as subscription percentages.
+        p.readings = p.readings.map(r => ({ ...r, remaining: r.percent }));
+        data[provider] = { ...p, mode: 'percent', limit: 100, plan: typeof p.plan === 'string' ? p.plan.slice(0, 40) : '' };
       }
     }
   }
@@ -21,7 +23,6 @@ const name = () => active === 'codex' ? 'Codex' : 'Claude';
 const date = (value, options = {}) => new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', ...options }).format(value);
 const fullDate = value => date(value, { weekday: 'short', hour: 'numeric', minute: '2-digit' });
 const pct = value => `${value.toFixed(1)}%`;
-const count = value => new Intl.NumberFormat().format(value);
 const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 function setBar(id, value) { $(id).style.width = `${Math.max(0, Math.min(100, value))}%`; }
 function localInput(value) { const d = new Date(value); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
@@ -34,24 +35,25 @@ function render() {
   const quota = current?.percent ?? 0;
   $('today-date').textContent = date(now, { weekday: 'long', year: 'numeric' });
   $('timezone').textContent = zone;
-  $('provider-title').textContent = `${name()} · weekly overview`;
+  $('provider-title').textContent = `${name()}${profile?.plan ? ` · ${profile.plan}` : ''} · weekly overview`;
   $('cycle-label').textContent = cycle ? `${fullDate(cycle.start)} — ${fullDate(cycle.end)}` : 'A fresh view of your weekly allowance';
   $('state-label').textContent = !cycle ? 'Not configured' : cycle.future ? 'Scheduled' : 'Current week';
-  const warning = storageWarning || (!cycle ? 'Start with Week settings: choose your weekly start time and enter your remaining quota.' : cycle.future ? 'Your weekly window has not started yet. Time remaining shows the full week; pacing begins at your start time.' : !current ? 'A new weekly window has started. Update your usage to confirm the current quota; old readings are not carried forward.' : '');
+  const warning = storageWarning || (!cycle ? 'Start with Week settings: choose your weekly start time and enter your remaining usage percentage.' : cycle.future ? 'Your weekly window has not started yet. Time remaining shows the full week; pacing begins at your start time.' : !current ? 'A new weekly window has started. Update your usage to confirm the current usage percentage; old readings are not carried forward.' : '');
   $('notice').textContent = warning; $('notice').hidden = !warning;
   if (cycle) {
     const mins = Math.ceil((cycle.end - Math.max(now, cycle.start)) / 60000);
-    $('countdown').innerHTML = `${Math.floor(mins / 1440)}<small>d</small> ${Math.floor(mins % 1440 / 60)}<small>h</small> ${mins % 60}<small>m</small>`;
+    $('countdown').innerHTML = `${Number((cycle.remaining * 7).toFixed(2))}<small> / 7 days</small>`;
+    $('time-percent').textContent = `${Math.floor(mins / 1440)}d ${Math.floor(mins % 1440 / 60)}h ${mins % 60}m left · ${pct(time)} remaining`;
   } else $('countdown').textContent = '—';
-  $('time-percent').textContent = cycle ? `${pct(time)} of your week remains` : 'Set your weekly start time';
+  if (!cycle) $('time-percent').textContent = 'Set your weekly start time';
   $('reset-short').textContent = cycle ? date(cycle.end, { weekday: 'short', hour: 'numeric', minute: '2-digit' }) : '—';
-  $('quota-number').innerHTML = current ? `${quota.toFixed(1)}<small>%</small>` : '—';
-  $('quota-detail').textContent = current ? profile.mode === 'tokens' ? `${count(current.remaining)} of ${count(profile.limit)} tokens left` : `${pct(100 - quota)} used this week` : 'Add a usage reading to begin';
+  $('quota-number').innerHTML = current ? `${Number(quota.toFixed(1))}%<small> / 100%</small>` : '—';
+  $('quota-detail').textContent = current ? `Usage left until reset · ${pct(100 - quota)} used` : 'Enter the % left shown by your provider';
   $('updated-at').textContent = current ? `As of ${date(current.at, { hour: 'numeric', minute: '2-digit' })}` : 'Manually tracked';
   const ratio = current && cycle && !cycle.future ? quota / time : null;
   $('ratio-number').innerHTML = ratio !== null ? `${ratio > 999 ? '999+' : ratio.toFixed(2)}<small>×</small>` : '—';
-  $('ratio-detail').textContent = ratio === null ? 'Your pacing at a glance' : quota === 0 ? 'Quota exhausted' : ratio >= 1 ? 'You have breathing room' : 'A slower pace will stretch your quota';
-  $('pace-note').textContent = ratio === null ? '1.00× means quota and time are in balance.' : `${Math.abs(quota - time).toFixed(1)} percentage points ${quota >= time ? 'above' : 'below'} time remaining.`;
+  $('ratio-detail').textContent = ratio === null ? 'Your pacing at a glance' : quota === 0 ? 'Weekly usage exhausted' : ratio >= 1 ? 'You have breathing room' : 'A slower pace will stretch your usage';
+  $('pace-note').textContent = ratio === null ? '1.00× means usage and time are in balance.' : `${Math.abs(quota - time).toFixed(1)} percentage points ${quota >= time ? 'above' : 'below'} time remaining.`;
   for (const id of ['time-bar','timeline-time']) setBar(id, time);
   for (const id of ['quota-bar','timeline-quota']) setBar(id, quota);
   $('timeline-time-label').textContent = cycle ? pct(time) : '—';
@@ -82,29 +84,21 @@ function render() {
   });
   if (current && cycle && !cycle.future) {
     const days = cycle.remaining * 7;
-    const allowance = profile.mode === 'tokens' ? `${count(Math.floor(current.remaining / days))} tokens` : `${(quota / days).toFixed(1)}% of quota`;
+    const allowance = `${(quota / days).toFixed(1)}% of weekly usage`;
     $('budget').textContent = `${allowance} / day`;
     $('budget-detail').textContent = `An even pace for the remaining ${days.toFixed(1)} days, based on your latest reading. ${days < 1 ? 'Less than a day remains; this is a 24-hour equivalent rate. ' : ''}Update usage after a work session to keep this useful.`;
-  } else { $('budget').textContent = 'Your week. Your pace.'; $('budget-detail').textContent = 'Set your weekly start and add a quota reading to see a daily allowance.'; }
-}
-function updateMode() {
-  const tokens = $('mode-input').value === 'tokens';
-  $('token-limit-wrap').hidden = !tokens; $('limit-input').required = tokens;
-  $('remaining-input').step = tokens ? '1' : '0.1';
-  if (tokens) $('remaining-input').removeAttribute('max'); else $('remaining-input').max = '100';
-  $('reading-label').textContent = tokens ? 'Tokens remaining' : 'Quota remaining (%)';
+  } else { $('budget').textContent = 'Your week. Your pace.'; $('budget-detail').textContent = 'Set your weekly start and add a usage percentage to see a daily allowance.'; }
 }
 function openSettings(focusUsage = false) {
   const p = data[active];
   $('form-provider').textContent = name().toUpperCase();
   $('start-input').value = localInput(p?.start || Date.now());
-  $('mode-input').value = p?.mode || 'percent';
-  $('limit-input').value = p?.limit || '';
+  $('plan-input').value = p?.plan || '';
   const latest = p?.readings.at(-1);
   const fresh = p && latest?.cycle === cycleAt(p.start, Date.now()).start;
   $('remaining-input').value = fresh ? latest.remaining : '';
   $('timezone-help').textContent = `Local timezone: ${zone}. Each window lasts exactly 168 hours.`;
-  $('form-error').textContent = ''; updateMode(); $('settings-dialog').showModal();
+  $('form-error').textContent = ''; $('settings-dialog').showModal();
   if (focusUsage) $('remaining-input').focus();
 }
 document.querySelectorAll('[data-provider]').forEach(button => {
@@ -118,13 +112,12 @@ document.querySelectorAll('[data-provider]').forEach(button => {
 $('edit').addEventListener('click', () => openSettings());
 $('update').addEventListener('click', () => openSettings(true));
 document.querySelectorAll('.close').forEach(b => b.addEventListener('click', () => $('settings-dialog').close()));
-$('mode-input').addEventListener('change', () => { $('remaining-input').value = ''; updateMode(); });
 $('settings-form').addEventListener('submit', event => {
   event.preventDefault();
   try {
     const start = new Date($('start-input').value).toISOString();
-    const mode = $('mode-input').value;
-    const limit = mode === 'tokens' ? Number($('limit-input').value) : 100;
+    const mode = 'percent', limit = 100;
+    const plan = $('plan-input').value.trim();
     const remaining = Number($('remaining-input').value);
     const percent = readingPercent(mode, remaining, limit);
     const at = Date.now(), cycle = cycleAt(start, at).start;
@@ -132,7 +125,7 @@ $('settings-form').addEventListener('submit', event => {
     // Changing the quota definition starts a new history to avoid mixing unlike readings.
     const readings = previous?.start === start && previous?.mode === mode && previous?.limit === limit ? [...previous.readings] : [];
     readings.push({ at, cycle, remaining, percent });
-    data[active] = { start, mode, limit, readings: readings.slice(-100) };
+    data[active] = { start, mode, limit, plan, readings: readings.slice(-100) };
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); storageWarning = ''; }
     catch { storageWarning = 'Your changes are active for this session, but browser storage could not save them.'; }
     $('settings-dialog').close(); render();
